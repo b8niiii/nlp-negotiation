@@ -1,5 +1,6 @@
 # Agent Persona Definitions
 # Each persona shapes the agent's communication style and decision-making priorities.
+# :> is used to indicate that the following lines should be treated as a single string.
 
 maximiser:
   name: "Maximiser"

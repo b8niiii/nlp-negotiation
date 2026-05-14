@@ -36,3 +36,8 @@ data/results/
 .vscode/
 .idea/
 *.swp
+
+# Ignore some files in docs
+docs/CLAUDE.md
+docs/idea.md
+docs/project_notes.md

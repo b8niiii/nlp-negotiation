@@ -174,3 +174,4 @@ Nel report puoi esplicitamente dedicare una sottosezione tipo:
 “Distinguishing Reasoning from Imitation: Operational Criteria”
 – e lì elencare i test sopra come operationalization di quelle tre categorie.
 
+

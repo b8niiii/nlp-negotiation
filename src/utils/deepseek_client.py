@@ -3,7 +3,9 @@ DeepSeek API client wrapper.
 
 Handles all communication with the DeepSeek API, separating the
 reasoning (chain-of-thought) content from the final response content.
-Uses the OpenAI-compatible API interface.
+Uses the OpenAI-compatible API interface: this is useful because it allows us to use 
+all the client libraries and tools developed for the OpenAI API, which has become a 
+de facto standard in the field.
 """
 
 import os
