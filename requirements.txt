@@ -1,0 +1,11 @@
+openai>=1.0.0          # DeepSeek API is OpenAI-compatible
+python-dotenv>=1.0.0   # .env loading
+pyyaml>=6.0            # config file parsing
+numpy>=1.26.0          # numerical analysis
+pandas>=2.0.0          # results dataframes
+sentence-transformers>=2.7.0  # cosine similarity for imitation test
+matplotlib>=3.8.0      # visualisation
+seaborn>=0.13.0        # visualisation
+tqdm>=4.66.0           # progress bars
+jupyter>=1.0.0         # notebooks
+ipykernel>=6.0.0       # notebook kernel
