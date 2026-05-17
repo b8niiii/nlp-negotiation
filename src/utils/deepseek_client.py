@@ -9,10 +9,11 @@ de facto standard in the field.
 """
 
 import os
-from dataclasses import dataclass
-from typing import Optional
+from dataclasses import dataclass # decorator that automatically generates 
+                                # __init__ , __repr__ and other common methods
+from typing import Optional 
 
-from openai import OpenAI
+from openai import OpenAI # OpenAI-compatible API interface
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -23,9 +24,9 @@ class DeepSeekResponse:
     """Structured response from DeepSeek-R1, separating CoT from final content."""
     content: str                        # The final response (sent to other agent)
     reasoning_content: Optional[str]    # The private chain-of-thought (logged only)
-    model: str
-    prompt_tokens: int
-    completion_tokens: int
+    model: str                          # Stores the model name
+    prompt_tokens: int                  # Stores the number of prompt tokens
+    completion_tokens: int              # Stores the number of completion tokens
 
 
 class DeepSeekClient:
@@ -49,13 +50,13 @@ class DeepSeekClient:
         self.model = model or os.getenv("DEEPSEEK_MODEL", "deepseek-reasoner")
 
         if not self.api_key:
-            raise ValueError("DEEPSEEK_API_KEY not set. Check your .env file.")
+            raise ValueError("DEEPSEEK_API_KEY not set")
 
-        self._client = OpenAI(api_key=self.api_key, base_url=self.base_url)
+        self._client = OpenAI(api_key=self.api_key, base_url=self.base_url) # OpenAI-compatible API interface
 
     def chat(
         self,
-        messages: list[dict],
+        messages: list[dict], # example: [{"role": "user", "content": "Ciao"}]
         temperature: float = 0.7,
         max_tokens: int = 2048,
     ) -> DeepSeekResponse:
@@ -79,14 +80,14 @@ class DeepSeekClient:
             max_tokens=max_tokens,
         )
 
-        choice = response.choices[0]
-        message = choice.message
+        choice = response.choices[0] # Chooses the first response
+        message = choice.message      # Extract the object containing message.role, message.content and message.reasoning_content
 
         # DeepSeek-R1 returns reasoning in a dedicated field
         reasoning = getattr(message, "reasoning_content", None)
 
         return DeepSeekResponse(
-            content=message.content or "",
+            content=message.content,
             reasoning_content=reasoning,
             model=response.model,
             prompt_tokens=response.usage.prompt_tokens,

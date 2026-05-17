@@ -333,3 +333,7 @@ NLP/
 - Akin et al. (2025) — *Socialized Learning and Emergent Behaviors in Multi-Agent Systems based on Multimodal LLMs* — arXiv:2510.18515
 - Gupta et al. (2025) — *The Role of Social Learning and Collective Norm Formation in Fostering Cooperation in LLM Multi-Agent Systems* — arXiv:2510.14401
 - DeepSeek-AI (2025) — *DeepSeek-R1: Incentivizing Reasoning Capability in LLMs via Reinforcement Learning* — arXiv:2501.12948
+
+
+
+Nota che in negotiating_agent, role_config viene assegnato ma non utilizzato direttamente dopo - è pensato per usi futuri?

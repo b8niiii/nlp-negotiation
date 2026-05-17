@@ -5,7 +5,7 @@ Defines the common interface and behaviour for all agents in the simulation.
 Subclasses implement specific roles (negotiator, observer, etc.).
 """
 
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod # to create an abstract class which the subclasses have to implement 
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -49,7 +49,7 @@ class BaseAgent(ABC):
     def _build_messages(self, new_user_message: Optional[str] = None) -> list[dict]:
         """
         Build the messages list for the API call.
-        System prompt + history + optional new incoming message.
+        System prompt + history + optional new incoming message. This is an helper method
         """
         messages = [{"role": "system", "content": self.system_prompt}]
         messages.extend(self._history)
