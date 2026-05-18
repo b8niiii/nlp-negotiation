@@ -5,7 +5,7 @@ Saves extracted tactics to disk so they can be loaded and injected
 into Phase 2 agent system prompts without re-running the Observer.
 """
 
-import json
+import json # to serialize and deserialize the tactics
 import os
 
 
@@ -44,6 +44,6 @@ class PromptUpdater:
             )
         with open(self.tactics_path, "r", encoding="utf-8") as f:
             return json.load(f)
-
+    # returns true if the tactics file exists - useful to check if we already have learned tactics
     def tactics_exist(self) -> bool:
         return os.path.exists(self.tactics_path)
