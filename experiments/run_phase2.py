@@ -42,8 +42,7 @@ def main():
         print("=== Phase 2 Step 1: Tactic Extraction ===")
         run_dir = f"data/raw/{args.phase1_run_id}"
         observer = ObserverAgent(client=client)
-        logger = TranscriptLogger()
-        extractor = TacticExtractor(observer=observer, logger=logger)
+        extractor = TacticExtractor(observer=observer)
 
         tactics = extractor.extract_tactics(run_dir=run_dir)
         updater.save_tactics(tactics)
