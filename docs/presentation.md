@@ -95,6 +95,8 @@ Each configuration (A–D) is run for approximately 20 negotiations, yielding ~8
 
 Phase 1 produces baseline distributions for quantitative metrics and raw material for qualitative analysis.
 
+**Implementation note on parallelisation:** since each negotiation turn is an API call to DeepSeek-R1, the experiment runner is I/O-bound rather than CPU-bound. Negotiation sessions are fully independent of each other and are therefore executed concurrently using Python's `concurrent.futures.ThreadPoolExecutor`. Python's Global Interpreter Lock (GIL) is released during network I/O, enabling true parallel execution across threads. A `threading.Semaphore` caps concurrent API calls at a configurable ceiling (default: 10) to respect DeepSeek's rate limits. Within a single session, turns remain sequential by design, as each agent's response is conditioned on the previous message. This architecture reduces total wall-clock time from O(N) to approximately O(N/max_workers) for large N.
+
 #### Phase 2 — In-Context Social Learning and Prompt-Based Behavioral Cloning
 
 Phase 2 implements a lightweight version of social learning and behavioral cloning entirely through prompt engineering, drawing conceptual inspiration from Gupta et al. (2025) and Akin et al. (2025).

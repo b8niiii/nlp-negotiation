@@ -5,7 +5,7 @@ Steps:
 1. Load Phase 1 run data
 2. Run Observer to score negotiations and extract tactics
 3. Save tactics to data/processed/learned_tactics.json
-4. Run negotiations with updated prompts
+4. Run negotiations with updated prompts (in parallel)
 5. Save Phase 2 transcripts and summary
 """
 
@@ -26,6 +26,9 @@ def main():
     parser.add_argument("--run-id", type=str, default=None, help="Custom run ID for output files")
     parser.add_argument("--skip-extraction", action="store_true",
                         help="Skip tactic extraction if learned_tactics.json already exists")
+    parser.add_argument("--workers", type=int, default=10,
+                        help="Max concurrent negotiations / API calls (default: 10). "
+                             "Lower this if you hit rate limits.")
     args = parser.parse_args()
 
     client = DeepSeekClient()
@@ -51,7 +54,8 @@ def main():
 
     # Step 2: Run Phase 2 negotiations with updated prompts
     print("\n=== Phase 2 Step 2: Running Negotiations with Learned Tactics ===")
-    print(f"Runs per config: {args.runs}")
+    print(f"Runs per config:  {args.runs}")
+    print(f"Parallel workers: {args.workers}")
 
     outcomes = run_experiment(
         configs=args.configs,
@@ -59,6 +63,7 @@ def main():
         phase=2,
         learned_tactics=tactics,
         client=client,
+        max_workers=args.workers,
     )
 
     logger = TranscriptLogger()

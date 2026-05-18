@@ -306,6 +306,28 @@ NLP/
 
 ---
 
+## ⚙️ Implementation Notes
+
+### Parallel Execution — `src/simulation/dialogue_loop.py`
+
+The experiment runner uses **`concurrent.futures.ThreadPoolExecutor`** to run negotiation sessions in parallel. Key design decisions:
+
+- **Why threads, not processes:** Sessions are I/O-bound (each turn is a DeepSeek API call). Python's GIL is released during network I/O, so threads achieve true concurrency here without the overhead of multiprocessing.
+- **Within-session sequentiality:** Turns inside a single negotiation remain sequential — the buyer must respond to the seller, and vice versa. Only cross-session parallelism is exploited.
+- **Rate limiting via Semaphore:** A `threading.Semaphore(max_workers)` caps the number of sessions making API calls simultaneously. This prevents HTTP 429 (rate limit) errors from DeepSeek. Default `max_workers=10`, tunable via `--workers` CLI flag.
+- **Progress tracking:** `tqdm` is fed via `concurrent.futures.as_completed()`, updating the progress bar as each negotiation completes (not at the end of all).
+- **Bug fix:** Added the missing `client: DeepSeekClient | None` parameter to `run_experiment()` — it was passed by callers but absent from the function signature, which would have caused a `NameError` at runtime.
+
+### Retry Logic — `src/utils/deepseek_client.py`
+
+The `chat()` method now retries automatically on transient API errors (HTTP 429 rate limit, 500/502/503/504 server errors) using **exponential backoff with random jitter**: wait time = `2^attempt + uniform(0, 1)` seconds (1s, 2s, 4s, 8s, 16s). Random jitter prevents the "thundering herd" problem where multiple threads retry simultaneously and trigger another rate limit. Non-retryable errors (bad API key, malformed request) are raised immediately. Maximum retries configurable via `max_retries` parameter (default: 5).
+
+### CLI `--workers` flag — `experiments/run_phase1.py` and `experiments/run_phase2.py`
+
+Both runners now accept a `--workers N` argument that is forwarded to `run_experiment(max_workers=N)`. This lets you tune parallelism from the command line without touching the code.
+
+---
+
 ## 📝 Progress Log
 
 | Date | Activity |
@@ -313,6 +335,7 @@ NLP/
 | 2026-05-11 | Project kicked off. Created `presentation.md` and `project_notes.md`. Summarised course requirements from slides. |
 | 2026-05-11 | Project topic selected: LLM multi-agent negotiation. Defined research question, methodology, scenarios, agent personas, metrics, and references. Created `CLAUDE.md`. Folder moved to `NLP/`. |
 | 2026-05-14 | Extended project design via `idea.md`. Finalised: scenario (software sale + bug asymmetry), model choice (DeepSeek-R1 for native CoT), two-phase design, persona matrix (4 configs), three-way analysis framework (scripted/pragmatic/genuine). Defined repo structure. Ruled out LoRA for now (future work). |
+| 2026-05-18 | Parallelised `dialogue_loop.py`: replaced sequential for-loop with ThreadPoolExecutor + Semaphore. Sessions now run concurrently (up to `max_workers=10` at a time). Also fixed missing `client` parameter bug in `run_experiment()`. Added exponential backoff retry logic to `deepseek_client.py`. Added `--workers` CLI argument to `run_phase1.py` and `run_phase2.py`. |
 
 ---
 

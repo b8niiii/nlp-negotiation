@@ -1,12 +1,12 @@
 """
 Phase 1 experiment runner — Baseline Zero-Shot Negotiation.
 
-Runs all 4 persona configurations x N negotiations each.
+Runs all 4 persona configurations x N negotiations each, in parallel.
 Saves all transcripts + CoT logs to data/raw/<run_id>/
 and a summary CSV to data/results/<run_id>_summary.csv
 """
 
-import argparse # parse command-line arguments
+import argparse
 from src.utils.deepseek_client import DeepSeekClient
 from src.simulation.dialogue_loop import run_experiment
 from src.logging.transcript_logger import TranscriptLogger
@@ -17,11 +17,15 @@ def main():
     parser.add_argument("--runs", type=int, default=20, help="Negotiations per config (default: 20)")
     parser.add_argument("--configs", nargs="+", default=None, help="Config keys to run (default: all)")
     parser.add_argument("--run-id", type=str, default=None, help="Custom run ID for output files")
+    parser.add_argument("--workers", type=int, default=10,
+                        help="Max concurrent negotiations / API calls (default: 10). "
+                             "Lower this if you hit rate limits.")
     args = parser.parse_args()
 
     print("=== Phase 1: Baseline Zero-Shot Negotiation ===")
-    print(f"Runs per config: {args.runs}")
-    print(f"Configurations: {args.configs or 'all (A, B, C, D)'}")
+    print(f"Runs per config:   {args.runs}")
+    print(f"Configurations:    {args.configs or 'all (A, B, C, D)'}")
+    print(f"Parallel workers:  {args.workers}")
 
     client = DeepSeekClient()
     outcomes = run_experiment(
@@ -30,6 +34,7 @@ def main():
         phase=1,
         learned_tactics=None,
         client=client,
+        max_workers=args.workers,
     )
 
     logger = TranscriptLogger()
