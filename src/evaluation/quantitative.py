@@ -30,7 +30,7 @@ def compute_session_metrics(session_data: dict) -> SessionMetrics:
 
     avg_msg_length = sum(words) / len(words) if words else 0.0
     all_words = " ".join(messages).lower().split()
-    vocabulary_size = len(set(all_words))
+    vocabulary_size = len(set(all_words)) # set removes duplicates and len() counts the number of unique words
 
     # Count concessions: price mentions that move in the expected direction
     seller_prices = []
@@ -86,7 +86,7 @@ def summarise_run(run_dir: str) -> list[ConfigSummary]:
     return aggregate_sessions(metrics)
 
 
-# --- helpers ---
+# helpers
 
 def _extract_prices(text: str) -> list[float]:
     pattern = r'(\d[\d,\.]*)\s*(?:EUR|€|euro|euros)?'

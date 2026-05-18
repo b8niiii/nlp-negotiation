@@ -45,7 +45,7 @@ def main():
         tactics = extractor.extract_tactics(run_dir=run_dir)
         updater.save_tactics(tactics)
 
-        print("\nExtracted tactics:")
+        print("\nExtracted tactics:") # prints the preview of the extracted tactics
         for role, tactic in tactics.items():
             print(f"\n[{role.upper()}] {tactic['description'][:200]}...")
 

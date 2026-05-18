@@ -21,7 +21,7 @@ LLM_JUDGE_SYSTEM = """You are an expert negotiation analyst evaluating dialogue 
 For each agent turn, assess whether the move is strategically appropriate given
 the dialogue history so far. Be concise and structured."""
 
-LLM_JUDGE_PROMPT = """Rate the following negotiation turn on a scale of 1–3:
+LLM_JUDGE_PROMPT = """Rate the following negotiation turn on a scale of 1-3:
 1 = Inappropriate or rigid (ignores context, repeats scripted language)
 2 = Adequate (acceptable move but not particularly adaptive)
 3 = Appropriate and adaptive (tailored to the specific dialogue state)
@@ -64,7 +64,7 @@ class LLMJudge:
         try:
             return json.loads(response.content)
         except json.JSONDecodeError:
-            return {"score": None, "rationale": response.content}
+            return {"score": None, "rationale": response.content} #if the model doesn't return a json, it returns the raw response without a score
 
     def score_transcript(self, transcript: list[dict]) -> list[dict]:
         """
@@ -80,7 +80,7 @@ class LLMJudge:
             results.append({
                 "turn": turn["turn"],
                 "role": turn["role"],
-                **score_data,
+                **score_data, # unpacks score and rationale into the results dict
             })
         return results
 
@@ -95,18 +95,18 @@ def compute_imitation_similarity(
     Compute cosine similarity between a negotiation transcript and
     the few-shot tactic example used in Phase 2 prompts.
 
-    High similarity → scripted imitation signal.
+    High similarity -> scripted imitation signal.
 
     Args:
         transcript: List of turn dicts from a session.
         few_shot_example: The example text injected into the system prompt.
 
     Returns:
-        Cosine similarity score (0.0–1.0).
+        Cosine similarity score (0.0-1.0).
     """
     from sentence_transformers import SentenceTransformer, util
 
-    model = SentenceTransformer("all-MiniLM-L6-v2")
+    model = SentenceTransformer("all-MiniLM-L6-v2") # this is a pre-trained model that computes sentence embeddings
     transcript_text = " ".join(t["content"] for t in transcript)
     embeddings = model.encode([transcript_text, few_shot_example], convert_to_tensor=True)
     similarity = util.cos_sim(embeddings[0], embeddings[1]).item()
@@ -116,10 +116,10 @@ def compute_imitation_similarity(
 # ─── CoT Reasoning Analysis ───────────────────────────────────────────────────
 
 REASONING_INDICATORS = {
-    "conditional": [r"\bif\b.{0,80}\bthen\b", r"\bif\b.{0,80}(?:,|;)", r"\bwould\b.{0,60}\bif\b"],
-    "history_reference": [r"\byou (said|mentioned|asked|offered)\b", r"\bprevious(ly)?\b", r"\bearlier\b"],
-    "strategic_planning": [r"\bbetter to\b", r"\bstrategy\b", r"\brisk\b.{0,40}\bbenefit\b", r"\btrade.?off\b"],
-    "goal_awareness": [r"\bmy (goal|objective|aim|target|priority)\b", r"\bi (need|want|must|should)\b"],
+    "conditional": [r"\bif\b.{0,80}\bthen\b", r"\bif\b.{0,80}(?:,|;)", r"\bwould\b.{0,60}\bif\b"], # checks for conditional statements in the CoT log
+    "history_reference": [r"\byou (said|mentioned|asked|offered)\b", r"\bprevious(ly)?\b", r"\bearlier\b"], # checks for references to previous statements in the CoT log
+    "strategic_planning": [r"\bbetter to\b", r"\bstrategy\b", r"\brisk\b.{0,40}\bbenefit\b", r"\btrade.?off\b"], # checks for strategic planning in the CoT log
+    "goal_awareness": [r"\bmy (goal|objective|aim|target|priority)\b", r"\bi (need|want|must|should)\b"], # checks for goal awareness in the CoT log
 }
 
 
@@ -128,7 +128,7 @@ def analyse_cot(cot_log: list[dict]) -> dict:
     Analyse the private CoT log for reasoning structure indicators.
 
     Returns:
-        Dict with indicator counts and a 'reasoning_score' (0–4).
+        Dict with indicator counts and a 'reasoning_score' (0-4).
     """
     all_cot_text = " ".join(
         (entry.get("reasoning") or "") for entry in cot_log

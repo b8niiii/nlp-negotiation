@@ -24,7 +24,8 @@ class SessionMetrics:
     vocabulary_size: int                 # unique words across transcript
     seller_concession_count: int         # number of price reductions by seller
     buyer_concession_count: int          # number of price increases by buyer
-    llm_judge_scores: list[float] = field(default_factory=list)   # per-turn appropriateness
+    llm_judge_scores: list[float] = field(default_factory=list)   # default_factory=list ensures each instance gets its own fresh list
+                                                                  # using [] directly would share the same list object across all instances
     imitation_similarity: Optional[float] = None   # cosine sim to few-shot examples (Phase 2)
 
 
@@ -57,9 +58,9 @@ def aggregate_sessions(sessions: list[SessionMetrics]) -> list[ConfigSummary]:
     from itertools import groupby
 
     summaries = []
-    key_fn = lambda s: (s.config, s.phase)
+    key_fn = lambda s: (s.config, s.phase) # the key function is used to group the sessions by config and phase
     for (config, phase), group in groupby(sorted(sessions, key=key_fn), key=key_fn):
-        group = list(group)
+        group = list(group) # group as returned by groupby is an temporary iterator, we convert it to a list so we can iterate over it more than once
         n = len(group)
 
         deals = [s for s in group if s.outcome == "deal"]

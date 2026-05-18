@@ -1,12 +1,12 @@
 """
 Phase 1 experiment runner — Baseline Zero-Shot Negotiation.
 
-Runs all 4 persona configurations × N negotiations each.
+Runs all 4 persona configurations x N negotiations each.
 Saves all transcripts + CoT logs to data/raw/<run_id>/
 and a summary CSV to data/results/<run_id>_summary.csv
 """
 
-import argparse
+import argparse # parse command-line arguments
 from src.utils.deepseek_client import DeepSeekClient
 from src.simulation.dialogue_loop import run_experiment
 from src.logging.transcript_logger import TranscriptLogger
