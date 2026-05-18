@@ -62,7 +62,7 @@ class TranscriptLogger:
         }
 
         with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2, ensure_ascii=False)
+            json.dump(data, f, indent=2, ensure_ascii=False) # serializes the dictionary into json in order to save it in a file
 
         return file_path
 
@@ -96,9 +96,13 @@ class TranscriptLogger:
             "bug_discovered", "turns",
         ]
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames)
-            writer.writeheader()
-            for o in outcomes:
+            # creates a writer CSV that accepts dictionaries, the advantage is that 
+            # the order of the columns is guaranteed to match the order of the keys in the dictionary
+            writer = csv.DictWriter(f, fieldnames=fieldnames) 
+
+            writer.writeheader() # writes the header row
+            
+            for o in outcomes: # iterate through all the outcomes
                 writer.writerow({
                     "session_id": o.session_id,
                     "config": o.config_name,
@@ -111,12 +115,14 @@ class TranscriptLogger:
                     "bug_discovered": o.bug_discovered,
                     "turns": o.turns,
                 })
-
+    # in phase 2 we use the following two methods to load the data back and to format them in a human (chatbot) readable way
+    # so that the observer agent can use them as context
+    # these methods are used in the TacticExtractor module
     @staticmethod
-    def load_session(path: str) -> dict:
+    def load_session(path: str) -> dict: # deserialize the JSON file into a Python dictionary
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f)
-
+    
     @staticmethod
     def format_transcript(session_data: dict) -> str:
         """Return a human-readable transcript string for a session."""

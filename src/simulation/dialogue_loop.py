@@ -6,7 +6,7 @@ collecting all outcomes into a list for downstream analysis.
 """
 
 import uuid 
-from tqdm import tqdm
+from tqdm import tqdm # to show a progress bar
 
 import yaml
 
@@ -25,9 +25,8 @@ def run_experiment(
     personas_path: str = "config/personas.yaml",
     configs: list[str] | None = None,       # e.g. ["A", "B"] — None = all
     runs_per_config: int = 20,
-    phase: int = 1,
-    learned_tactics: dict | None = None,    # Phase 2: {"seller": {...}, "buyer": {...}}
-    client: DeepSeekClient | None = None,
+    phase: int = 1,                         # 1 for baseline, 2 for social learning
+    learned_tactics: dict | None = None,    # Phase 2: {"seller": {...}, "buyer": {...}}, None in fase 1
 ) -> list[SessionOutcome]:
     """
     Run a batch of negotiations across the specified configurations.
@@ -46,12 +45,14 @@ def run_experiment(
     """
     if client is None:
         client = DeepSeekClient()
-
+    # Load the scenario and personas as dictionaries
     scenarios = load_config(scenario_path)
     personas_config = load_config(personas_path)
 
+    # Get the software sale scenario and persona definitions
     scenario = scenarios["software_sale"]
     all_configs = personas_config["configurations"]
+    # extract persona definitions from the personas_config dictionary, by filtering out the "configurations" key
     persona_defs = {k: v for k, v in personas_config.items() if k != "configurations"}
 
     if configs is None:
@@ -67,7 +68,7 @@ def run_experiment(
         print(f"\n[Config {config_key}] {config['description']}")
         print(f"  Seller: {seller_persona['name']} | Buyer: {buyer_persona['name']}")
 
-        for i in tqdm(range(runs_per_config), desc=f"Config {config_key}"):
+        for i in tqdm(range(runs_per_config), desc=f"Config {config_key}"): # desc is the description of the progress bar
             seller = NegotiatingAgent(
                 role="seller",
                 scenario=scenario,
