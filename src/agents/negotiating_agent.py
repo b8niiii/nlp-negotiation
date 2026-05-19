@@ -100,7 +100,6 @@ class NegotiatingAgent(BaseAgent): # this class inherits from BaseAgent
                 tactic_example=learned_tactic.get("example"),
             )
 
-        role_config = scenario[role]
         currency = scenario.get("currency", "EUR")
 
         if role == "seller":

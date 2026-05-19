@@ -5,7 +5,7 @@ Manages the state of one Seller–Buyer negotiation: turn tracking,
 outcome detection, and assembling the full transcript + CoT log.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 from src.agents.base_agent import Turn

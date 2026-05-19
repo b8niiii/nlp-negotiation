@@ -2,7 +2,7 @@
 
 > This is the living reference file for the NLP university project.
 > It is read and updated by the AI assistant at the start and end of every work session.
-> **Last updated:** 2026-05-14 (session 3)
+> **Last updated:** 2026-05-19 (session 5)
 
 ---
 
@@ -292,11 +292,11 @@ NLP/
 - [ ] Implement src/social_learning/prompt_updater.py
 - [ ] Write experiments/run_phase1.py
 - [ ] Write experiments/run_phase2.py
-- [ ] Run Phase 1 experiments (~80 negotiations across 4 configs)
+- [x] Run Phase 1 experiments (~80 negotiations across 4 configs) — run_id `20260518_213850`
 - [ ] Run Observer evaluation on Phase 1 results
 - [ ] Run Phase 2 experiments (~80 negotiations with updated prompts)
 - [ ] Analyse results (quantitative + qualitative)
-- [ ] Write notebooks for demo and visualisation
+- [x] Write notebooks for demo and visualisation (`01_baseline_demo.ipynb`, `02_social_learning_demo.ipynb`, `03_analysis_visualization.ipynb`)
 - [ ] Write Introduction section (presentation.md)
 - [ ] Write Research Question & Methodology section (presentation.md)
 - [ ] Write Experimental Results section (presentation.md)
@@ -326,6 +326,83 @@ The `chat()` method now retries automatically on transient API errors (HTTP 429 
 
 Both runners now accept a `--workers N` argument that is forwarded to `run_experiment(max_workers=N)`. This lets you tune parallelism from the command line without touching the code.
 
+### Bug fix — `experiments/run_phase2.py` (`TacticExtractor` signature)
+
+The runner was passing `TacticExtractor(observer=observer, logger=logger)` but the constructor only accepts `observer`. The class uses `TranscriptLogger.load_session()` and `format_transcript()` as static helpers, so no logger instance is needed. Removed the bad keyword argument.
+
+### Dead-code cleanup — `src/agents/negotiating_agent.py`
+
+Removed an unused assignment `role_config = scenario[role]` inside `build_system_prompt()` (residue of an earlier refactor — the variable was never read downstream).
+
+### Evolution of Outcome Detection: Regex → LLM *(note for the report)*
+
+This is a methodological decision worth reporting explicitly in the paper, as it illustrates a recurring trade-off in NLP pipelines.
+
+**First approach — keyword/regex detection:**
+The initial implementation used simple substring matching against two fixed lists (`DEAL_KEYWORDS`, `NO_DEAL_KEYWORDS`) to classify each session's outcome at runtime, inside the dialogue loop. This was fast and free (no API call). However, running the demo notebook revealed a systematic failure mode: deal keywords appearing in negative contexts (e.g. *"I can't **accept** this"*, *"no **deal** without guarantees"*) triggered false positives, classifying walk-away sessions as deals with a spurious price.
+
+**Second approach — LLM-based post-hoc verification:**
+After observing the failure, we added a second-pass classification step. After the keyword loop exits, the full visible transcript is passed to `deepseek-chat` (base model, not reasoning) with a tight JSON prompt: classify as `deal`/`no_deal` and extract the agreed price. The LLM result overwrites the keyword result. The keyword loop is kept as a structural signal (it still determines *when* to stop the negotiation), but the final outcome label is determined by the model.
+
+**Why deepseek-chat and not deepseek-reasoner for this task:**
+Outcome classification is a simple reading-comprehension task — the answer is directly readable from the last 2–3 turns. Chain-of-thought reasoning adds latency and cost without benefit here. deepseek-chat is ~20× cheaper and faster for this use case.
+
+**Reportable lesson:** regex/keyword approaches are appropriate as first-pass heuristics in dialogue systems, but they are brittle to negation, hedging, and indirect speech — exactly the linguistic phenomena that are scientifically interesting in a negotiation study. For any label that feeds downstream analysis, LLM-based annotation is more reliable even at scale.
+
+### LLM Outcome Verification — `src/simulation/session.py` + `src/agents/observer_agent.py`
+
+The keyword-based deal/no-deal detector can produce false positives when deal keywords appear in negative contexts (e.g. "I can't **accept**", "no **deal** without guarantees"). To fix this, a second-pass LLM verification step was added after the keyword loop.
+
+**How it works:**
+- After `run()` completes, if an `outcome_verifier` (an `ObserverAgent`) was passed to the session, `_verify_outcome_with_llm()` is called.
+- The full visible transcript is passed to `ObserverAgent.verify_outcome()`, which sends a short classification prompt to `deepseek-chat` (base model — no reasoning needed for this task).
+- The model returns `{"outcome": "deal"|"no_deal", "final_price": <number|null>}`.
+- If the response is valid JSON, `self._outcome` and `self._final_price` are overwritten with the LLM result.
+- `SessionOutcome.outcome_verified` is set to `True` if verification succeeded, `False` if the verifier was absent or returned unparseable output (keyword result is kept as fallback).
+
+**Where it's wired:**
+- `dialogue_loop.run_experiment()` creates one shared `ObserverAgent(client=DeepSeekClient(model="deepseek-chat"))` and passes it to every session. The instance is shared safely across threads because `verify_outcome()` calls `self.reset()` internally before each use.
+- Both experiment runners expose `--no-verify` to disable verification (keyword-only, faster).
+- `transcript_logger.py` saves `outcome_verified` to both JSON and CSV.
+- `01_baseline_demo.ipynb` builds and passes the verifier in the demo session cell.
+
+**Cost:** one `deepseek-chat` call per session (~$0.001). Negligible at 80–160 sessions total.
+
+### `bug_disclosed` vs `bug_discovered` — Independence and Four-Way Taxonomy
+
+These two boolean flags in `SessionOutcome` (and `NegotiationSession`) are **fully independent**: `bug_disclosed` fires when the *seller* mentions a bug keyword; `bug_discovered` fires when the *buyer* does. Neither conditions the other. All four combinations are therefore possible and analytically meaningful:
+
+| `bug_disclosed` | `bug_discovered` | Interpretation |
+|:---:|:---:|---|
+| ✅ | ✅ | Seller confesses, buyer acknowledges — full transparency reached |
+| ✅ | ❌ | Seller discloses but buyer never names it (silently prices in the risk) |
+| ❌ | ✅ | Buyer infers/probes and names it without seller ever admitting — **strategic asymmetry**, richest case for analysis |
+| ❌ | ❌ | Bug stays fully hidden — seller succeeds at concealment |
+
+The `❌ / ✅` case (discovered but not disclosed) is the most analytically valuable: it signals *pragmatic adaptation* or *genuine reasoning* by the buyer (probing questions, inference from evasiveness).
+
+**Important caveat:** detection is keyword-based (no LLM call, by design — trades accuracy for speed/cost). If an agent uses indirect phrasing not in `BUG_KEYWORDS`, the flag won't fire. The keyword set was broadened on 2026-05-19 to cover softer references (see below).
+
+### BUG_KEYWORDS expansion — `src/simulation/session.py`
+
+Original set was narrow (8 words). Expanded to cover:
+- Direct technical terms: `bug`, `defect`, `flaw`, `vulnerability`, `error`, `corrupt`
+- Indirect / softer references: `issue`, `problem`, `fault`, `glitch`, `malfunction`, `instability`, `broken`, `failing`, `crash`, `unstable`, `anomaly`, `irregularity`
+- Disclosure/discovery framing: `known issue`, `undisclosed`, `hidden problem`, `not working`, `doesn't work`, `does not work`, `not functioning`, `limitation`
+- Hedged/suspicious buyer language: `concern`, `risk`, `worry`, `suspect`, `suspicion`, `something wrong`, `something off`, `not right`
+
+**Note:** broadening the keyword set may increase false positives (e.g., "price risk" triggering on "risk"). If precision becomes important, a second-pass LLM classification on flagged turns is the natural fix.
+
+### Notebooks — `notebooks/01..03_*.ipynb`
+
+Three notebooks added, fulfilling the prof's requirement of using Jupyter "primarily for demonstration, experimentation, and visualisation":
+
+- **`01_baseline_demo.ipynb`** — walks through a single Phase 1 session interactively. Loads scenario + personas, builds agents, displays both the visible transcript and the private CoT. Vetrina of the mechanism for the demo / interview.
+- **`02_social_learning_demo.ipynb`** — walks through the Phase 2 pipeline: Observer scoring on one session, full tactic extraction (cached), side-by-side prompt diff (Phase 1 vs Phase 2 system prompt), and one Phase 2 negotiation.
+- **`03_analysis_visualization.ipynb`** — the analytical core. Loads both Phase 1 and Phase 2 runs, builds a pandas dataframe of `SessionMetrics`, renders all the figures for the report (agreement rate, price distribution, bug rates, turns, concessions, LLM-judge per-turn scores, cosine similarity for the imitation test, CoT reasoning indicators), and emits two master CSVs (`aggregated_summary.csv`, `master_table.csv`) into `data/results/`. All figures saved to `data/results/figures/`.
+
+The expensive analyses (LLM-judge, cosine similarity) cache their output to `data/processed/` so the notebook can be re-opened cheaply.
+
 ---
 
 ## 📝 Progress Log
@@ -336,6 +413,10 @@ Both runners now accept a `--workers N` argument that is forwarded to `run_exper
 | 2026-05-11 | Project topic selected: LLM multi-agent negotiation. Defined research question, methodology, scenarios, agent personas, metrics, and references. Created `CLAUDE.md`. Folder moved to `NLP/`. |
 | 2026-05-14 | Extended project design via `idea.md`. Finalised: scenario (software sale + bug asymmetry), model choice (DeepSeek-R1 for native CoT), two-phase design, persona matrix (4 configs), three-way analysis framework (scripted/pragmatic/genuine). Defined repo structure. Ruled out LoRA for now (future work). |
 | 2026-05-18 | Parallelised `dialogue_loop.py`: replaced sequential for-loop with ThreadPoolExecutor + Semaphore. Sessions now run concurrently (up to `max_workers=10` at a time). Also fixed missing `client` parameter bug in `run_experiment()`. Added exponential backoff retry logic to `deepseek_client.py`. Added `--workers` CLI argument to `run_phase1.py` and `run_phase2.py`. |
+| 2026-05-18 | Ran the full Phase 1 batch (~80 negotiations, 4 configs × 20 runs). Run ID: `20260518_213850`. |
+| 2026-05-19 | Fixed a bug in `run_phase2.py` (`TacticExtractor` was being called with an extra `logger` kwarg). Removed the unused `role_config = scenario[role]` line in `negotiating_agent.py`. Authored the three notebooks: `01_baseline_demo`, `02_social_learning_demo`, `03_analysis_visualization`. The third one is the orchestrator for all report figures and tables. |
+| 2026-05-19 | Clarified independence of `bug_disclosed` / `bug_discovered` flags (four analytically distinct cases). Expanded `BUG_KEYWORDS` in `session.py` from 8 to ~30 terms to cover indirect, hedged, and disclosure-framing language. |
+| 2026-05-19 | Implemented LLM outcome verification (Proposal F). Keyword-based loop now followed by a `deepseek-chat` call via `ObserverAgent.verify_outcome()`. Added `outcome_verified: bool` to `SessionOutcome`. Wired through `dialogue_loop.py` (shared verifier instance, `verify_outcomes=True` default), `transcript_logger.py` (JSON + CSV), both experiment runners (`--no-verify` flag to disable), and `01_baseline_demo.ipynb`. |
 
 ---
 

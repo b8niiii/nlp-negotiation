@@ -37,7 +37,7 @@ def _run_single_session(
     learned_tactics: dict | None,
     phase: int,
     semaphore: threading.Semaphore,
-    outcome_verifier: ObserverAgent | None = None,
+    verifier_client: DeepSeekClient | None = None,
 ) -> SessionOutcome:
     """
     Create and run a single negotiation session, respecting the concurrency semaphore.
@@ -46,10 +46,10 @@ def _run_single_session(
     session completes. This caps the number of concurrent sessions regardless of
     how many threads the executor has spawned.
 
-    If outcome_verifier is provided, the session will call it after the keyword
-    loop to confirm the outcome via LLM (deepseek-chat). The verifier is shared
-    across sessions — ObserverAgent is stateless between calls (reset() is called
-    inside verify_outcome()), so sharing it across threads is safe.
+    If verifier_client is provided, a fresh ObserverAgent is created per session
+    for outcome verification. A fresh instance per session is required for thread
+    safety: ObserverAgent inherits _history from BaseAgent, and sharing a single
+    instance across threads would cause race conditions between reset() and respond().
     """
     with semaphore:
         seller = NegotiatingAgent(
@@ -66,6 +66,9 @@ def _run_single_session(
             client=client,
             learned_tactic=learned_tactics.get("buyer") if learned_tactics else None,
         )
+
+        # Fresh ObserverAgent per session — avoids _history race conditions across threads
+        outcome_verifier = ObserverAgent(client=verifier_client) if verifier_client else None
 
         session = NegotiationSession(
             session_id=str(uuid.uuid4()),
@@ -122,14 +125,15 @@ def run_experiment(
     if client is None:
         client = DeepSeekClient()
 
-    # Build outcome verifier — uses deepseek-chat (base model), not deepseek-reasoner.
-    # One shared instance is safe across threads: verify_outcome() calls reset()
-    # internally before each use, so there is no cross-session state leakage.
-    outcome_verifier = None
+    # Build the verifier client — uses deepseek-chat (base model), not deepseek-reasoner.
+    # We pass only the client to _run_single_session, which creates a fresh ObserverAgent
+    # per session. This avoids _history race conditions: BaseAgent._history is mutable
+    # state that is not thread-safe, so sharing a single ObserverAgent instance across
+    # concurrent sessions would cause reset()/respond() interleaving.
+    verifier_client = None
     if verify_outcomes:
         verifier_client = DeepSeekClient(model="deepseek-chat")
-        outcome_verifier = ObserverAgent(client=verifier_client)
-        print("Outcome verifier: enabled (deepseek-chat)")
+        print("Outcome verifier: enabled (deepseek-chat, one ObserverAgent per session)")
     else:
         print("Outcome verifier: disabled (keyword-only detection)")
 
@@ -173,7 +177,7 @@ def run_experiment(
                 _run_single_session,
                 config_key, seller_persona, buyer_persona,
                 scenario, client, learned_tactics, phase, semaphore,
-                outcome_verifier,
+                verifier_client,
             ): config_key
             for config_key, seller_persona, buyer_persona in jobs
         }

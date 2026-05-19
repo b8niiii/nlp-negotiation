@@ -9,7 +9,6 @@ import json
 import csv
 import os
 from datetime import datetime
-from dataclasses import asdict
 
 from src.simulation.session import SessionOutcome
 

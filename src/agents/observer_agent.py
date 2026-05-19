@@ -5,6 +5,8 @@ Used in Phase 2 to evaluate completed negotiations, score each agent's
 performance, select the best runs, and extract winning tactics.
 """
 
+import json
+
 from src.agents.base_agent import BaseAgent
 from src.utils.deepseek_client import DeepSeekClient
 
@@ -138,7 +140,6 @@ class ObserverAgent(BaseAgent):
             On parse failure, also includes "raw" with the unparsed model output,
             and "outcome" / "final_price" are both None (caller keeps keyword result).
         """
-        import json
         self.reset()
         prompt = OUTCOME_VERIFICATION_PROMPT.format(transcript=transcript_text)
         turn = self.respond(prompt)

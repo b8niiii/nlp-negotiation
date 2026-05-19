@@ -1,7 +1,7 @@
 # LLM Agents in Negotiation: Emergent Communicative Strategies in Multi-Agent Dialogue
 
 > **Status:** Work in progress
-> **Last updated:** 2026-05-14
+> **Last updated:** 2026-05-19
 
 ---
 
@@ -144,6 +144,12 @@ A human inter-rater check is applied to a subset of Observer scores to assess re
 ### 3.3 Qualitative Analysis
 
 *[To be written — tactic taxonomy, CoT analysis, novel tactic emergence, representative examples]*
+
+### 3.4 Analysis Tooling and Reproducibility
+
+All evaluation logic is implemented as importable Python modules under `src/evaluation/`. `quantitative.py` computes session-level numerical metrics (agreement, price, turns, concessions, linguistic complexity) entirely offline. `qualitative.py` provides three independent components, each aligned with one lens of the analytical framework introduced in Section 2.6: an LLM-judge that scores per-turn appropriateness (pragmatic adaptation), a cosine-similarity routine over sentence embeddings that compares Phase 2 transcripts against the few-shot examples injected in their prompts (scripted imitation), and a regex-based analyser of the private CoT log that counts indicators of conditional reasoning, history reference, strategic planning, and goal awareness (genuine reasoning).
+
+Three Jupyter notebooks orchestrate these modules and produce the figures and tables used in this report. `notebooks/01_baseline_demo.ipynb` and `notebooks/02_social_learning_demo.ipynb` are pedagogical walkthroughs of a single Phase 1 and Phase 2 session respectively, intended for the demonstration component of the assessment. `notebooks/03_analysis_visualization.ipynb` is the analytical core: it loads both phases from the raw JSON transcripts, builds the aggregated comparison table reproduced in §3.2 and §3.3, and renders all figures into `data/results/figures/`. Expensive analyses (the LLM-judge and the cosine-similarity computations) cache their output to `data/processed/` so the notebook can be re-opened without re-incurring API or model-loading costs. This separation between modular library code and notebook-driven presentation follows the course's explicit guidance against monolithic notebooks.
 
 ---
 
