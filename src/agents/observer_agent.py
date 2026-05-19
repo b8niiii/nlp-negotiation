@@ -45,6 +45,24 @@ Provide your analysis in the following JSON format:
 }}
 """
 
+OUTCOME_VERIFICATION_PROMPT = """Read the following negotiation transcript and determine the outcome.
+
+--- TRANSCRIPT ---
+{transcript}
+--- END TRANSCRIPT ---
+
+Answer ONLY with valid JSON, no other text:
+{{
+  "outcome": "deal" | "no_deal",
+  "final_price": <number or null>
+}}
+
+Rules:
+- "deal" only if both parties explicitly agreed on a specific price.
+- "no_deal" if any party walked away, refused, or the conversation ended without a clear mutual agreement.
+- final_price must be the agreed number, or null if no deal.
+"""
+
 TACTIC_EXTRACTION_PROMPT = """Based on the following successful negotiations for the {role} role,
 extract a reusable strategy description and a representative example snippet.
 
@@ -100,6 +118,35 @@ class ObserverAgent(BaseAgent):
         )
         turn = self.respond(prompt)
         return turn.content
+
+    def verify_outcome(self, transcript_text: str) -> dict:
+        """
+        Lightweight outcome verification using a base (non-reasoning) model.
+
+        Reads the completed transcript and returns the ground-truth outcome
+        and final price. Designed to be called with a deepseek-chat client
+        (not deepseek-reasoner) — this is a simple classification task that
+        does not require chain-of-thought reasoning.
+
+        Args:
+            transcript_text: Plain-text transcript (role: content, one per line).
+
+        Returns:
+            Dict with keys:
+              "outcome"     -> "deal" | "no_deal"
+              "final_price" -> float | None
+            On parse failure, also includes "raw" with the unparsed model output,
+            and "outcome" / "final_price" are both None (caller keeps keyword result).
+        """
+        import json
+        self.reset()
+        prompt = OUTCOME_VERIFICATION_PROMPT.format(transcript=transcript_text)
+        turn = self.respond(prompt)
+        try:
+            return json.loads(turn.content)
+        except json.JSONDecodeError:
+            # Model returned non-JSON — keep keyword-detected outcome, log raw for inspection
+            return {"outcome": None, "final_price": None, "raw": turn.content}
 
     def extract_tactics(self, role: str, successful_transcripts: str) -> str:
         """

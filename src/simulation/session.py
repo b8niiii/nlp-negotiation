@@ -26,6 +26,7 @@ class SessionOutcome:
     turns: int
     transcript: list[dict]      # Visible dialogue only
     cot_log: list[dict]         # Private CoT per turn
+    outcome_verified: bool = False  # True if outcome was confirmed by LLM judge (deepseek-chat)
 
 
 class NegotiationSession:
@@ -60,10 +61,11 @@ class NegotiationSession:
         self,
         session_id: str,
         config_name: str,
-        seller,           # NegotiatingAgent
-        buyer,            # NegotiatingAgent
+        seller,                    # NegotiatingAgent
+        buyer,                     # NegotiatingAgent
         max_turns: int = 15,
         phase: int = 1,
+        outcome_verifier=None,     # ObserverAgent | None — if provided, verifies outcome via LLM after keyword loop
     ):
         self.session_id = session_id
         self.config_name = config_name
@@ -71,6 +73,7 @@ class NegotiationSession:
         self.buyer = buyer
         self.max_turns = max_turns
         self.phase = phase
+        self.outcome_verifier = outcome_verifier
 
         self._transcript: list[dict] = []
         self._cot_log: list[dict] = []
@@ -123,12 +126,38 @@ class NegotiationSession:
                 continue
         return None
 
+    def _verify_outcome_with_llm(self) -> bool:
+        """
+        Call the outcome_verifier (ObserverAgent backed by deepseek-chat) on the
+        completed transcript and overwrite self._outcome / self._final_price if the
+        LLM result differs from the keyword-based detection.
+
+        Returns True if verification succeeded (LLM returned a valid response).
+        """
+        transcript_text = "\n".join(
+            f"{t['role'].upper()}: {t['content']}" for t in self._transcript
+        )
+        result = self.outcome_verifier.verify_outcome(transcript_text)
+        if result.get("outcome") is not None:
+            self._outcome = result["outcome"]
+            if result.get("final_price") is not None:
+                self._final_price = float(result["final_price"])
+            elif result["outcome"] == "no_deal":
+                self._final_price = None   # ensure price is cleared on no_deal
+            return True
+        return False  # LLM returned unparseable output — keep keyword result
+
     def run(self) -> SessionOutcome:
         """
         Execute the full negotiation loop.
 
         Seller opens the negotiation. Then Buyer and Seller alternate.
         Loop ends on: deal keyword, no-deal keyword, or max_turns reached.
+
+        If an outcome_verifier (ObserverAgent) was provided at construction,
+        the keyword-detected outcome is overwritten by the LLM classification
+        after the loop. This eliminates false positives from negated deal
+        keywords (e.g. "I can't accept", "no deal without guarantees").
 
         Returns:
             SessionOutcome with full transcript, CoT log, and outcome metadata.
@@ -180,6 +209,11 @@ class NegotiationSession:
 
             last_message = seller_turn.content
 
+        # LLM outcome verification — runs after the keyword loop, uses deepseek-chat
+        outcome_verified = False
+        if self.outcome_verifier is not None:
+            outcome_verified = self._verify_outcome_with_llm()
+
         return SessionOutcome(
             session_id=self.session_id,
             config_name=self.config_name,
@@ -193,4 +227,5 @@ class NegotiationSession:
             turns=self._turn_count,
             transcript=self._transcript,
             cot_log=self._cot_log,
+            outcome_verified=outcome_verified,
         )

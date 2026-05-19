@@ -53,6 +53,7 @@ class TranscriptLogger:
             "buyer_persona": outcome.buyer_persona,
             "phase": outcome.phase,
             "outcome": outcome.outcome,
+            "outcome_verified": outcome.outcome_verified,
             "final_price": outcome.final_price,
             "bug_disclosed": outcome.bug_disclosed,
             "bug_discovered": outcome.bug_discovered,
@@ -92,7 +93,7 @@ class TranscriptLogger:
         csv_path = os.path.join(self.results_dir, f"{run_id}_summary.csv")
         fieldnames = [
             "session_id", "config", "seller_persona", "buyer_persona",
-            "phase", "outcome", "final_price", "bug_disclosed",
+            "phase", "outcome", "outcome_verified", "final_price", "bug_disclosed",
             "bug_discovered", "turns",
         ]
         with open(csv_path, "w", newline="", encoding="utf-8") as f:
@@ -110,6 +111,7 @@ class TranscriptLogger:
                     "buyer_persona": o.buyer_persona,
                     "phase": o.phase,
                     "outcome": o.outcome,
+                    "outcome_verified": o.outcome_verified,
                     "final_price": o.final_price,
                     "bug_disclosed": o.bug_disclosed,
                     "bug_discovered": o.bug_discovered,

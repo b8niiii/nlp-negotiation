@@ -18,6 +18,7 @@ from tqdm import tqdm
 import yaml
 
 from src.agents.negotiating_agent import NegotiatingAgent
+from src.agents.observer_agent import ObserverAgent
 from src.simulation.session import NegotiationSession, SessionOutcome
 from src.utils.deepseek_client import DeepSeekClient
 
@@ -36,6 +37,7 @@ def _run_single_session(
     learned_tactics: dict | None,
     phase: int,
     semaphore: threading.Semaphore,
+    outcome_verifier: ObserverAgent | None = None,
 ) -> SessionOutcome:
     """
     Create and run a single negotiation session, respecting the concurrency semaphore.
@@ -43,6 +45,11 @@ def _run_single_session(
     The semaphore is acquired before any API call is made and released when the
     session completes. This caps the number of concurrent sessions regardless of
     how many threads the executor has spawned.
+
+    If outcome_verifier is provided, the session will call it after the keyword
+    loop to confirm the outcome via LLM (deepseek-chat). The verifier is shared
+    across sessions — ObserverAgent is stateless between calls (reset() is called
+    inside verify_outcome()), so sharing it across threads is safe.
     """
     with semaphore:
         seller = NegotiatingAgent(
@@ -67,6 +74,7 @@ def _run_single_session(
             buyer=buyer,
             max_turns=scenario.get("max_turns", 15),
             phase=phase,
+            outcome_verifier=outcome_verifier,
         )
 
         return session.run()
@@ -81,6 +89,7 @@ def run_experiment(
     learned_tactics: dict | None = None,    # Phase 2: {"seller": {...}, "buyer": {...}}, None in fase 1
     client: DeepSeekClient | None = None,   # shared across all sessions (thread-safe for I/O)
     max_workers: int = 10,                  # max concurrent sessions / API calls
+    verify_outcomes: bool = True,           # use LLM judge (deepseek-chat) to verify outcome after keyword loop
 ) -> list[SessionOutcome]:
     """
     Run a batch of negotiations across the specified configurations in parallel.
@@ -100,6 +109,11 @@ def run_experiment(
         client:          DeepSeekClient instance (created from env if None)
         max_workers:     Max concurrent sessions — tune this against the
                          DeepSeek rate limit for your API tier
+        verify_outcomes: If True, an ObserverAgent backed by deepseek-chat
+                         verifies the keyword-detected outcome after each session.
+                         Eliminates false positives from negated deal keywords
+                         (e.g. "I can't accept", "no deal without guarantees").
+                         Adds one cheap API call per session (~$0.001 each).
 
     Returns:
         List of SessionOutcome objects, one per negotiation run.
@@ -107,6 +121,17 @@ def run_experiment(
     """
     if client is None:
         client = DeepSeekClient()
+
+    # Build outcome verifier — uses deepseek-chat (base model), not deepseek-reasoner.
+    # One shared instance is safe across threads: verify_outcome() calls reset()
+    # internally before each use, so there is no cross-session state leakage.
+    outcome_verifier = None
+    if verify_outcomes:
+        verifier_client = DeepSeekClient(model="deepseek-chat")
+        outcome_verifier = ObserverAgent(client=verifier_client)
+        print("Outcome verifier: enabled (deepseek-chat)")
+    else:
+        print("Outcome verifier: disabled (keyword-only detection)")
 
     # Load the scenario and personas as dictionaries
     scenarios = load_config(scenario_path)
@@ -148,6 +173,7 @@ def run_experiment(
                 _run_single_session,
                 config_key, seller_persona, buyer_persona,
                 scenario, client, learned_tactics, phase, semaphore,
+                outcome_verifier,
             ): config_key
             for config_key, seller_persona, buyer_persona in jobs
         }

@@ -20,12 +20,16 @@ def main():
     parser.add_argument("--workers", type=int, default=10,
                         help="Max concurrent negotiations / API calls (default: 10). "
                              "Lower this if you hit rate limits.")
+    parser.add_argument("--no-verify", action="store_true",
+                        help="Disable LLM outcome verification (use keyword detection only). "
+                             "Faster and cheaper, but may produce incorrect outcome labels.")
     args = parser.parse_args()
 
     print("=== Phase 1: Baseline Zero-Shot Negotiation ===")
     print(f"Runs per config:   {args.runs}")
     print(f"Configurations:    {args.configs or 'all (A, B, C, D)'}")
     print(f"Parallel workers:  {args.workers}")
+    print(f"Outcome verify:    {'disabled' if args.no_verify else 'enabled (deepseek-chat)'}")
 
     client = DeepSeekClient()
     outcomes = run_experiment(
@@ -35,6 +39,7 @@ def main():
         learned_tactics=None,
         client=client,
         max_workers=args.workers,
+        verify_outcomes=not args.no_verify,
     )
 
     logger = TranscriptLogger()
