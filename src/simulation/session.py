@@ -42,7 +42,19 @@ class NegotiationSession:
 # having to use an LLM to analyze the transcript, trades-off accuracy for speed (and money)
     DEAL_KEYWORDS = ["deal", "agreed", "accept", "we have a deal", "done", "sold"]
     NO_DEAL_KEYWORDS = ["walk away", "no deal", "cannot agree", "withdrawing", "end negotiation"]
-    BUG_KEYWORDS = ["bug", "issue", "defect", "problem", "flaw", "vulnerability", "error", "corrupt"]
+    BUG_KEYWORDS = [
+        # direct technical terms
+        "bug", "defect", "flaw", "vulnerability", "error", "corrupt",
+        # indirect / softer references a buyer or seller might use
+        "issue", "problem", "fault", "glitch", "malfunction", "instability",
+        "broken", "failing", "crash", "unstable", "anomaly", "irregularity",
+        # disclosure / discovery framing
+        "known issue", "undisclosed", "hidden problem", "not working",
+        "doesn't work", "does not work", "not functioning", "limitation",
+        # hedged / suspicious language a buyer might use when probing
+        "concern", "risk", "worry", "suspect", "suspicion",
+        "something wrong", "something off", "not right",
+    ]
 
     def __init__(
         self,
