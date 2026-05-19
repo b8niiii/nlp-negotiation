@@ -8,10 +8,29 @@ Uses the ObserverAgent to:
 """
 
 import json
+import re
 from pathlib import Path
 
 from src.agents.observer_agent import ObserverAgent
 from src.logging.transcript_logger import TranscriptLogger
+
+
+def _parse_json(raw: str) -> dict:
+    """
+    Robustly parse a JSON string that may be wrapped in markdown code fences.
+
+    LLM responses frequently wrap JSON in ```json ... ``` blocks.
+    json.loads() fails on these, causing silent data loss downstream.
+    This helper strips fences before parsing, then falls back to returning
+    {"raw": raw} so callers always receive a dict.
+    """
+    # Strip markdown fences (```json ... ``` or ``` ... ```)
+    cleaned = re.sub(r"^```(?:json)?\s*", "", raw.strip(), flags=re.IGNORECASE)
+    cleaned = re.sub(r"\s*```$", "", cleaned.strip())
+    try:
+        return json.loads(cleaned)
+    except json.JSONDecodeError:
+        return {"raw": raw}
 
 
 class TacticExtractor:
@@ -46,10 +65,7 @@ class TacticExtractor:
                 buyer_persona=session_data.get("buyer_persona", ""),
             )
 
-            try:
-                scores = json.loads(score_json) # convert the JSON string into a python dictionary
-            except json.JSONDecodeError:
-                scores = {"raw": score_json}    # fallback to raw string if parsing fails (though this shouldn't happen)
+            scores = _parse_json(score_json)  # handles markdown fences; falls back to {"raw": ...}
 
             scored.append({
                 "session_id": session_data["session_id"],
@@ -115,15 +131,14 @@ class TacticExtractor:
             print(f"Extracting {role} tactic from top sessions...")
             tactic_json = self.observer.extract_tactics(role=role, successful_transcripts=combined) 
 
-            try:
-                tactic = json.loads(tactic_json)
-            except json.JSONDecodeError:
-                tactic = {"description": tactic_json, "example": ""}
+            tactic = _parse_json(tactic_json)
             # we store the tactic_description and tactic_example in the tactics dictionary
             tactics[role] = {
                 "description": tactic.get("tactic_description", ""),
                 "example": tactic.get("tactic_example", ""),
             }
+            if not tactics[role]["description"]:
+                print(f"  WARNING: {role} tactic description is empty. Raw response: {tactic_json[:200]}")
 
         return tactics
 
