@@ -28,6 +28,11 @@ Instructions:
 - Aim to reach an agreement above your minimum price.
 - If no deal is possible, you may end negotiations politely.
 - Keep responses concise (2-5 sentences per turn).
+
+Outcome tags (mandatory):
+- When you formally accept a price and close the deal, append on a new line at the very end of your message: [DEAL: <price>]
+- When you decide to walk away and end negotiations, append on a new line at the very end of your message: [NO DEAL]
+- Use these tags ONLY for firm, final decisions. Do not use them speculatively or in hypothetical examples.
 """
 
 # persona addon is a series of behavioral specifics and tactics of the agent
@@ -51,6 +56,11 @@ Instructions:
 - Use any discovered issues as leverage to negotiate a lower price.
 - If the price remains above your budget or risks are too high, walk away.
 - Keep responses concise (2-5 sentences per turn).
+
+Outcome tags (mandatory):
+- When you formally accept a price and close the deal, append on a new line at the very end of your message: [DEAL: <price>]
+- When you decide to walk away and end negotiations, append on a new line at the very end of your message: [NO DEAL]
+- Use these tags ONLY for firm, final decisions. Do not use them speculatively or in hypothetical examples.
 """
 
 TACTIC_SECTION_TEMPLATE = """
