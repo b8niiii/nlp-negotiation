@@ -87,6 +87,22 @@ class LLMJudge:
 
 # ─── Cosine Similarity (Imitation Test) ──────────────────────────────────────
 
+# Module-level singleton: the model is loaded once on first call and reused for
+# every subsequent call. Avoids re-loading 90 MB of weights 160× (once per
+# session × role in the Phase 2 loop).
+_SENTENCE_MODEL = None
+
+
+def _get_sentence_model():
+    """Lazy-load and cache the SentenceTransformer model at module level."""
+    global _SENTENCE_MODEL
+    if _SENTENCE_MODEL is None:
+        from sentence_transformers import SentenceTransformer
+        _SENTENCE_MODEL = SentenceTransformer("all-MiniLM-L6-v2")
+        print("SentenceTransformer loaded ✓  (cached for all subsequent calls)")
+    return _SENTENCE_MODEL
+
+
 def compute_imitation_similarity(
     transcript: list[dict],
     few_shot_example: str,
@@ -104,9 +120,9 @@ def compute_imitation_similarity(
     Returns:
         Cosine similarity score (0.0-1.0).
     """
-    from sentence_transformers import SentenceTransformer, util
+    from sentence_transformers import util
 
-    model = SentenceTransformer("all-MiniLM-L6-v2") # this is a pre-trained model that computes sentence embeddings
+    model = _get_sentence_model()  # reuses the cached instance, no re-loading
     transcript_text = " ".join(t["content"] for t in transcript)
     embeddings = model.encode([transcript_text, few_shot_example], convert_to_tensor=True)
     similarity = util.cos_sim(embeddings[0], embeddings[1]).item()
